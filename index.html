@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>BANPO 1001</title>
+  <style>
+    html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#f4f4f2; }
+    #title {
+      position:fixed; left:18px; top:14px; z-index:10;
+      font:600 18px/1.2 Arial, "Noto Sans KR", sans-serif;
+      color:#222; background:rgba(255,255,255,.82);
+      padding:8px 11px; border-radius:6px; backdrop-filter: blur(4px);
+    }
+    #info {
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+      z-index:9; font:14px Arial, sans-serif; color:#555;
+      background:rgba(255,255,255,.9); padding:10px 14px; border-radius:6px;
+    }
+    canvas { display:block; width:100%; height:100%; touch-action:none; }
+  </style>
+</head>
+<body>
+<div id="title">BANPO 1001</div>
+<div id="info">3D 모델 불러오는 중…</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
+import { TDSLoader } from 'three/addons/loaders/TDSLoader.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf4f4f2);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 100000);
+camera.position.set(8, 6, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.2));
+const key = new THREE.DirectionalLight(0xffffff, 2.0);
+key.position.set(10, 20, 10);
+scene.add(key);
+
+const controls = new TrackballControls(camera, renderer.domElement);
+controls.rotateSpeed = 3.0;
+controls.zoomSpeed = 1.2;
+controls.panSpeed = 0.8;
+controls.staticMoving = true;
+
+function frameObject(obj) {
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+
+  controls.target.copy(center);
+  camera.near = Math.max(maxDim / 10000, 0.01);
+  camera.far = maxDim * 100;
+  camera.position.copy(center).add(new THREE.Vector3(maxDim*1.25, maxDim*0.9, maxDim*1.25));
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+const loader = new TDSLoader();
+loader.setResourcePath('./');
+loader.load(
+  './BANPO%201001%2003.3ds',
+  (object) => {
+    scene.add(object);
+
+    // 원본 재질은 유지하면서 외곽선을 조금 더 진하게 표시
+    object.traverse((child) => {
+      if (child.isMesh && child.geometry) {
+        const edges = new THREE.EdgesGeometry(child.geometry, 25);
+        const lines = new THREE.LineSegments(
+          edges,
+          new THREE.LineBasicMaterial({ color:0x4f4f4f, transparent:true, opacity:0.72 })
+        );
+        child.add(lines);
+      }
+    });
+
+    frameObject(object);
+    document.getElementById('info').style.display = 'none';
+  },
+  (xhr) => {
+    if (xhr.total) {
+      const p = Math.round(xhr.loaded / xhr.total * 100);
+      document.getElementById('info').textContent = `3D 모델 불러오는 중… ${p}%`;
+    }
+  },
+  (err) => {
+    console.error(err);
+    document.getElementById('info').textContent =
+      '모델을 불러오지 못했습니다. index.html과 3DS 파일이 같은 폴더에 있는지 확인하세요.';
+  }
+);
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  controls.handleResize();
+});
+</script>
+</body>
+</html>
